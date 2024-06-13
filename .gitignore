@@ -1,0 +1,19 @@
+# macOS
+.DS_Store
+
+# IntelliJ IDEA
+.idea/
+
+# Compiled files
+*.class
+*.jar
+
+# Package files
+*.war
+*.ear
+*.zip
+*.tar.gz
+
+# Logs and databases
+*.log
+*.sqlite
