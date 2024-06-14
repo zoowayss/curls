@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"os"
 	"strings"
 )
 
@@ -37,13 +38,20 @@ func main() {
 	var customHeaders headers = make(map[string]string)
 	// 定义一个 -H 参数，用于设置自定义 Header
 	flag.Var(&customHeaders, "H", "HTTP header in key:value format")
-	env := flag.String("h", "dev", "Environment (dev or prod)")
+	env := flag.String("h", "", "Host eg: https://www.baidu.com embed prod or dev or local")
 	path := flag.String("p", "", "Request path")
 	method := flag.String("X", "GET", "HTTP method")
 	port := flag.Int("P", 59447, "Port")
 	body := flag.String("d", "", "Request body")
 	token := flag.String("t", "", "Authorization token")
+
 	flag.Parse()
+	// 如果用户没有输入参数，则打印帮助信息
+	if *env == "" {
+		flag.Usage()
+		os.Exit(0)
+	}
+
 	if token != nil {
 		customHeaders["Authorization"] = *token
 	}
