@@ -65,7 +65,7 @@ func doRequest(method string, url string, reqBody string, h *headers) {
 	if err != nil {
 		log.Fatalf("Failed to create request: %v", err)
 	}
-	if method == "POST" {
+	if method == "POST" || method == "PUT" || method == "DELETE" {
 		req.Header.Add("Content-Type", "application/json")
 	}
 
