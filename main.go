@@ -52,7 +52,7 @@ func main() {
 		os.Exit(0)
 	}
 
-	if token != nil {
+	if *token != "" {
 		customHeaders["Authorization"] = *token
 	}
 
