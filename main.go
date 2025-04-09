@@ -1,11 +1,13 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 )
@@ -42,7 +44,8 @@ func main() {
 	path := flag.String("p", "", "Request path")
 	method := flag.String("X", "GET", "HTTP method")
 	port := flag.Int("P", 59447, "Port")
-	body := flag.String("d", "", "Request body")
+	body := flag.String("d", "", "Request body (auto convert JSON to form data)")
+	jsonBody := flag.String("json", "", "JSON request body (with Content-Type: application/json)")
 	token := flag.String("t", "", "Authorization token")
 
 	flag.Parse()
@@ -57,7 +60,32 @@ func main() {
 	}
 
 	requestUrl := getRequestUrl(*env, *port, *path)
-	doRequest(*method, requestUrl, *body, &customHeaders)
+	
+	// 选择使用哪种请求体和对应的 Content-Type
+	var requestBody string
+	var contentType string
+	
+	if *jsonBody != "" {
+		requestBody = *jsonBody
+		contentType = "application/json"
+	} else if *body != "" {
+			var jsonMap map[string]interface{}
+			err := json.Unmarshal([]byte(*body), &jsonMap)
+			if err == nil {
+				// 成功解析为 JSON，转换为表单格式
+				params := url.Values{}
+				convertJSONToForm(jsonMap, "", params)
+				requestBody = params.Encode()
+			} else {
+				// 解析失败，保持原样
+				fmt.Printf("警告: JSON 解析失败: %v\n", err)
+				requestBody = *body
+			}
+		contentType = "application/x-www-form-urlencoded"
+	} 	
+	customHeaders["Content-Type"] = contentType
+	
+	doRequest(*method, requestUrl, requestBody, &customHeaders)
 }
 
 func doRequest(method string, url string, reqBody string, h *headers) {
@@ -68,16 +96,6 @@ func doRequest(method string, url string, reqBody string, h *headers) {
 
 	for key, val := range *h {
 		req.Header.Add(key, val)
-	}
-
-	if req.Header["Content-Type"] == nil {
-
-		if method == "POST" || method == "PUT" || method == "DELETE" {
-			req.Header.Add("Content-Type", "application/json")
-		} else {
-			req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
-		}
-
 	}
 
 	client := &http.Client{}
@@ -109,4 +127,42 @@ func getRequestUrl(env string, port int, path string) string {
 	}
 	url = url + path
 	return url
+}
+
+// convertJSONToForm 将 JSON 对象递归转换为表单数据
+// parentKey 是父级键名，用于处理嵌套对象
+// params 是表单数据的结果集
+func convertJSONToForm(jsonMap map[string]interface{}, parentKey string, params url.Values) {
+	for key, value := range jsonMap {
+		// 构建当前键名
+		var currentKey string
+		if parentKey == "" {
+			currentKey = key
+		} else {
+			// 对于嵌套对象，使用 parent[child] 格式
+			currentKey = fmt.Sprintf("%s[%s]", parentKey, key)
+		}
+		
+		// 根据值的类型进行处理
+		switch v := value.(type) {
+		case map[string]interface{}:
+			// 递归处理嵌套对象
+			convertJSONToForm(v, currentKey, params)
+		case []interface{}:
+			// 处理数组
+			for i, item := range v {
+				arrayKey := fmt.Sprintf("%s[%d]", currentKey, i)
+				// 如果数组元素是对象，递归处理
+				if mapItem, isMap := item.(map[string]interface{}); isMap {
+					convertJSONToForm(mapItem, arrayKey, params)
+				} else {
+					// 简单类型直接添加
+					params.Add(arrayKey, fmt.Sprintf("%v", item))
+				}
+			}
+		default:
+			// 简单类型直接添加
+			params.Add(currentKey, fmt.Sprintf("%v", value))
+		}
+	}
 }
